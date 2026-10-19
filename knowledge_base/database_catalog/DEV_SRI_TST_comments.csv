@@ -1,0 +1,4 @@
+﻿"ENVIRONMENT","SCHEMA_OWNER","TABLE_NAME","COMMENTS"
+"DEV","SRI_TST","D_SRI_SERVER_CONNECTION_OBJ","A server connection."
+"DEV","SRI_TST","F_SRI_DB_OBJECT","documents business tables and views in instance"
+"DEV","SRI_TST","F_SRI_SERVER_CONNECTION_STATE","A server connection."

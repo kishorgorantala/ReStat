@@ -1,0 +1,7 @@
+output/*
+!output/.gitkeep
+logs/*
+!logs/.gitkeep
+issue_tracker/SRI_Issue_Tracker.xlsx
+!issue_tracker/.gitkeep
+__pycache__/

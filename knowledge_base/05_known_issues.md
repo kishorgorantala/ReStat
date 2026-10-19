@@ -1,0 +1,9 @@
+# SRI Known Issues
+
+## Source of truth
+
+The user-maintained issue tracker is stored locally in the `issue_tracker/` folder and replaced manually by the user. Check the files in that folder only after the user grants permission for the current RCA. Tracker contents are not copied into this Markdown table automatically. If the folder is empty or its workbook is unreadable, ask the user to add an accessible file or export; do not claim the tracker was checked.
+
+| Issue Description | Environment | Reported Date | Resolved Date | Ticket | Root Cause | Impact | Resolution | Error Log |
+|-------------------|-------------|---------------|---------------|--------|------------|--------|------------|-----------|
+| ETL awaiting EOD snapshot (`PK_ID=0`) in SIT1; SRI Snap engine could not attach its StoreRequestSnap queues | SIT1 (dwhdas24) | 2026-10-09 | 2026-10-09 | N/A | On the Snap engine restart at 15:01, the engine failed to connect to the AMQP broker `prmbgc21.xeops.deutsche-boerse.de:21202` and could not attach its `broadcast.STSTX_PRISMA.StoreRequestSnap.*` consume queues. Queue names already carried the correct `STSTX_PRISMA` prefix, so this was broker reachability, not a name mismatch. With the queues unattached, the Snap engine could not receive/store snapshot StoreRequests from PRISMA, leaving the EOD snapshot incomplete for the ETL team. | SIT1 snapshot StoreRequest consumption blocked; downstream/ETL could not obtain the EOD snapshot until the broker connection was restored. | Resolved after an AMQP broker-side restart. Once the broker was back, the Snap engine reconnected and resumed consuming StoreRequestSnap queues. No SRI config change required (queue names were already correct). | `PRISMA_SIT_SNAP.log` 2026-10-09T15:01:57: `Failed to connect to remote at: amqp://prmbgc21.xeops.deutsche-boerse.de:21202`; repeated `error while listening to amqp connection: (... broadcast.STSTX_PRISMA.StoreRequestSnap.NNNN)` |
