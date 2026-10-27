@@ -10,7 +10,7 @@ Source: [SRI - General information and tips](https://pages.github.deutsche-boers
 - An engine connects to the broker first and then to its queue.
 
 ## Log and script locations
-- Engine logs are on the relevant `dwh*` server under `/infa_files/Scripts/SRI/logs`.
+- Engine logs are on the relevant `dwh*` server. The directory is environment/host-specific: common paths include `/infa_files/Scripts/SRI/logs` and `/infa_files/Scripts/SRI/Logs`; user-confirmed DR host `dwhdas25` uses `/infa_files/Scripts/SRI/log` (singular). Confirm the path on the target host before using it.
 - DEV server noted by the source: `dwhdas56`; aliases `logs` and `scripts` are available there.
 - Start/stop/restart scripts are under `/infa_files/Scripts/SRI/scripts`.
 - DEV SRI Prisma script path also referenced in the development guide: `/home/infa64/infa_files/Scripts/SRI.PRISMA`.

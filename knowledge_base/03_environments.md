@@ -47,14 +47,17 @@ The following hostnames are listed in the user-provided DOU revision 1.0 dated 2
 | Development | `dwhdsri01.stx.dbgtst.de`, `dwhdsri02.stx.dbgtst.de`, `dwhdsri03.stx.dbgtst.de` | DOU's development server inventory. |
 | DR | `dwhdas25.stx.dbgtst.de` | Dress Rehearsal. |
 | SIMU | `dwhsas33` | Standard SIMU host; listed without a domain suffix. |
-| ACC | `dwhdas26` | Current standard ACC host. |
-| ACC (old) | `dwhdas27-old` | Superseded host name provided for reference. |
-| ACC (CIF) | `dwhaas03-cif` | CIF host. |
+| ACC | `dwhaas01` | Current standard ACC host (all 4 engines moved here from `dwhdas26` on 2026-10-22 due to a memory issue). |
+| ACC (former) | `dwhdas26` | Former standard ACC host; no longer in ACC scope after the 2026-10-22 move. Still powered on but unrelated to SRI ACC. |
+| ACC (old DOU) | `dwhdas27-old` | Superseded DOU host name provided for reference. |
+| ACC (CIF) | `dwhaas03-cif` | CIF host — unchanged by the 2026-10-22 move; CIF engines remain here. |
 | PROD | `dwhpas27`, `dwhpas46` | Standard PROD and PROD CIF, respectively. |
 | SIT1 | `dwhdas24.stx.dbgtst.de` | |
 | SIT2 | `dwhdas28.stx.dbgtst.de` | |
 | SIT deployment | `dwhpdeploy1` | Deployment server; environment hostname suffix not provided. |
 | POPE / Conversion | Not specified | Confirm with environment owner. |
+
+**ACC standard host moved to `dwhaas01` on 2026-10-22** (user-confirmed): all four standard ACC engines (`PRISMA_ACC` Main/Live/Snap/What-If) were relocated from `dwhdas26` to `dwhaas01` due to a memory issue. CIF engines were **not** moved and remain on `dwhaas03-cif`. `dwhdas26` is still powered on but no longer relevant to SRI ACC. For any ACC standard investigation use `dwhaas01`; treat earlier `dwhdas26` log/tuning snapshots as historical and reconfirm on `dwhaas01`.
 
 The latest user-provided update supersedes the DOU's old ACC host `dwhdas27`. DEV hostnames match the DOU. Earlier operations notes also mention `dwhdas56` as a DEV alias/server; verify the current alias and environment mapping before connecting or operating an engine. Service names, wallet aliases, and credentials remain excluded; use approved internal authentication instructions.
 
@@ -190,3 +193,20 @@ Confirmed mapping from restart output:
 
 Do NOT pass `PRISMA_SIT2` directly to `restart.sh` — it fails with "file missing".
 Note: WHATIF also uses `PRISMA_SRI_MAIN.sh` as its launch script (same as MAIN).
+
+### User-confirmed DR log inventory (host `dwhdas25`, 2026-10-19)
+Snapshot supplied by the user from `yo328_t2@dwhdas25`. This is a saved path/filename and engine-name reference, not live health evidence. Reconfirm host, active environment, and engine for each incident.
+
+- Host: `dwhdas25` (the DOU inventory lists `dwhdas25.stx.dbgtst.de` for DR).
+- Logs: `/infa_files/Scripts/SRI/log` (**singular**). The plural `/infa_files/Scripts/SRI/logs` does not exist on this host according to the supplied shell output.
+- Scripts: `/infa_files/Scripts/SRI/scripts`.
+- The supplied `grep "ENGINE_NAME_" sri_env.sh` output includes the DR engine names below. It also prints POPE and Conversion assignments, but without surrounding environment-selection logic; do not infer which environment is active from those lines alone.
+
+| DR engine role | Runtime log | Error log | Info log | Netty log | Startup log |
+|----------------|-------------|------------|----------|------------|-------------|
+| Main | `PRISMA_MAIN_DR.log` | `PRISMA_MAIN_DR_err.log` | `PRISMA_MAIN_DR_info.log` | `netty_PRISMA_MAIN_DR.log` | `start_PRISMA_MAIN_DR.log` |
+| Live | `PRISMA_LIVE_DR.log` | `PRISMA_LIVE_DR_err.log` | `PRISMA_LIVE_DR_info.log` | `netty_PRISMA_LIVE_DR.log` | `start_PRISMA_LIVE_DR.log` |
+| Snap | `PRISMA_SNAP_DR.log` | `PRISMA_SNAP_DR_err.log` | `PRISMA_SNAP_DR_info.log` | `netty_PRISMA_SNAP_DR.log` | `start_PRISMA_SNAP_DR.log` |
+| What-If | `PRISMA_WHATIF_DR.log` | `PRISMA_WHATIF_DR_err.log` | `PRISMA_WHATIF_DR_info.log` | `netty_PRISMA_WHATIF_DR.log` | `start_PRISMA_WHATIF_DR.log` |
+
+The listing also showed many dated runtime archives and generic `*_ENGINE_*` or semicolon-containing descriptor log files. Use the role-specific `_DR` logs above for DR investigation; descriptor filenames mentioning `dwhdas28` or `dwhaas03` refer to other hosts and are not evidence those engines run on `dwhdas25`.

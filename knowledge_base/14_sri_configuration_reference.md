@@ -72,6 +72,8 @@ Confirmed from the ACC MAIN engine on `dwhdas26`, 2026-10-12. Reconfirm per host
 
 ## ACC engine tuning baseline (`dwhdas26`, confirmed 2026-10-12)
 
+> **Host moved:** ACC standard engines moved to `dwhaas01` on 2026-10-22 (memory issue). This baseline was captured on the former host `dwhdas26`; reconfirm all values on `dwhaas01`, as a memory-driven move may coincide with changed heap/GC settings.
+
 Non-secret values read from `sri_env.sh_sri_acc`, `engine.cfg_sri_acc`, `connectionPooler.cfg`, and the MAIN gc log. Credentials, wallet alias, `secretPath`, emails, and proxy values were present but are intentionally excluded. These are a dated baseline; reconfirm before acting.
 
 **Per-engine memory / GC (`sri_env.sh_sri_acc`):**

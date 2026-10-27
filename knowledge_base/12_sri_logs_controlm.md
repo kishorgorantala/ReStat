@@ -23,6 +23,9 @@ Linux paths may be case-sensitive; verify exact path on the target system. The D
 
 For DEV, identify the affected instance first and inspect its matching log set. For Non-DEV, use the log for the relevant engine. Supporting logs named in the DOU include FlushQueue, CIF, and SIMU engine logs; names and availability vary by installation.
 
+### User-confirmed DR host exception
+User-supplied shell output from `yo328_t2@dwhdas25` confirms the DR log directory is `/infa_files/Scripts/SRI/log` (singular), not `/infa_files/Scripts/SRI/logs`. Use the role-specific `_DR` filenames in [03_environments.md](03_environments.md). The host listing includes generic engine and semicolon-containing descriptor log names that reference other hosts; do not treat those names as proof that the referenced engine is local to DR. This is a filename/path snapshot, not current engine-health evidence.
+
 ### Suggested first log by symptom
 | Symptom | Start with |
 |---------|------------|
@@ -36,7 +39,7 @@ For DEV, identify the affected instance first and inspect its matching log set. 
 
 ## Investigation approach: current vs. historical, and command scoping
 
-These are ReStat working practices derived from live investigations. Keep all commands read-only and bounded.
+These are ReStat working practices derived from live investigations. Keep all commands read-only and bounded. For the consolidated command rules and the approved read-only catalog (shared by RCA and health check), see [15_putty_command_rules.md](15_putty_command_rules.md).
 
 ### Ask current-vs-past up front
 - Ask whether the issue is **happening now** or is a **past occurrence**.
@@ -104,7 +107,7 @@ for e in PRISMA_ACC PRISMA_ACC_LIVE PRISMA_ACC_SNAP PRISMA_ACC_WHATIF; do
   grep -n -E "\-ERROR +:" "$e.log" | tail -n 5
 done
 ```
-Engine lists: standard higher env = `PRISMA_<ENV> PRISMA_<ENV>_LIVE PRISMA_<ENV>_SNAP PRISMA_<ENV>_WHATIF` (4); CIF = `PRISMA_CIF_MAIN PRISMA_CIF_LIVE PRISMA_CIF_SNAP` (3). Verified working on ACC `dwhdas26` 2026-10-12.
+Engine lists: standard higher env = `PRISMA_<ENV> PRISMA_<ENV>_LIVE PRISMA_<ENV>_SNAP PRISMA_<ENV>_WHATIF` (4); CIF = `PRISMA_CIF_MAIN PRISMA_CIF_LIVE PRISMA_CIF_SNAP` (3). Verified working on ACC `dwhdas26` 2026-10-12. **Note:** ACC standard engines moved to `dwhaas01` on 2026-10-22 (memory issue); use `dwhaas01` for current ACC standard checks. CIF remains on `dwhaas03-cif`.
 
 **DEV is the exception — it is multi-host.** DEV instances are distributed across `dwhdsri01`/`dwhdsri02`/`dwhdsri03` (users `sri1`/`sri2`/`sri3`), while `/infa_files/.../Logs` is a **shared filesystem**. Consequences for the morning check:
 - `ps -ef` on one host only lists that host's processes, so instances running on the other two hosts show as **false DOWN**. Run the Part A inventory on **all three** DEV hosts and combine.

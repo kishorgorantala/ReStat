@@ -44,6 +44,32 @@ The DOU's worked model versions, instance numbers, and file names are examples a
 - A script containing the view definitions must be prepared.
 - A helper program that copies view definitions from the previous model works on all environments but is **not recommended** for non-DEV (needs more Operations interaction). Prefer an SQL script.
 
+## Two-descriptor deployment model (user-confirmed 2026-10-19)
+
+Source: user-provided DR deployment descriptors. A non-DEV model release uses **two separate `.csv` deployment descriptors**, run in order:
+
+1. **Metadata descriptor** – installs the model: copies the jars (`prisma_model`, `prisma_main`, `sri`), creates dirs, runs the `01__..05__`/mapper/view/AMQP-queue metadata SQL, and the Data Pump (`dp_amqp_client`) artifacts. All metadata SQL targets the environment's **metadata schema**.
+2. **Conversion descriptor** – points the running engine instances to the newly installed model (e.g. `44__update_f_sri_instance_state_switch_model.sql`, notification/enum inserts). It touches **two different schemas**:
+   - **Application-data schema** for domain/enum inserts (`D_DOM_PRISMA_ENUM`, basic-domain SQL) via `schema=EUREX_PRISMA` (the canonical PRISMA application schema; environments differ by DB/service, not schema name).
+   - **Metadata schema** for the engine model-switch and notification SQL (e.g. DR `schema=SRI_SIT`).
+
+### Per-environment schema values for descriptors
+| Environment | Metadata schema (`schema=` for metadata SQL) | Application-data schema (`schema=` for `D_DOM_PRISMA_ENUM`/domain inserts) |
+|-------------|-----------------------------------------------|----------------------------------------------------------------------------|
+| SIMU | `SRI_SIM` | confirm per descriptor |
+| SIT2 | `SRI_SIT2` (confirmed) | `EUREX_PRISMA_SIT2` (confirmed from SIT2 descriptor; environment-suffixed) |
+| DR | `SRI_SIT` (confirmed from `engine.cfg_sri_dr` on `dwhdas25`) | `EUREX_PRISMA` (user-reported; confirm against DR connect file `.connect_sri_dr_stx.sql` / DR app DB `dwhdrprima`) |
+
+The application-data schema is **environment-specific**: SIT2 uses the suffixed `EUREX_PRISMA_SIT2`, while PROD uses the base `EUREX_PRISMA`. Do not assume a plain `EUREX_PRISMA` for every environment — confirm per target.
+
+The conversion SQL lives under an **environment-specific subfolder** `Deployment/PRISMA/02-ORACLE/<ENV>/` (observed `SIM/` for SIMU, `SIT2/` for SIT2). A DR descriptor should reference `DR/`, not a copied `SIM/` path.
+
+Notes / cautions:
+- **DR has no CIF** (confirmed 2026-10-19 on `dwhdas25` and `dwhdas22`, lead-confirmed). DR descriptors carry the **standard block only** — remove any `#CIF_SRI_Related` block copied from SIMU.
+- Descriptors differ per environment beyond just the schema: observed variation in `prisma_main` jar version (SIT2 `10.7.1` vs SIM/DR `10.6.2`), file `perm` (SIT2 `774` vs SIM/DR `664`), and which optional SQL blocks are included (SIT2 metadata omits `27__`, `101_`, dp-related, and `62/372/373` hotfixes, and comments out `26__Hedgehog`). Confirm the correct set per target rather than copying wholesale.
+- `schema=` in a descriptor is a logical name the deployment tool maps to a connection; confirm the mapping for the target environment rather than assuming the SIMU value carries over.
+- These are reference facts, not authorization to deploy. Deployment is state-changing; verify versions, schemas, and paths and get operator approval before execution.
+
 ## Log analysis hints
 | Symptom | Likely cause to check |
 |---------|-----------------------|
