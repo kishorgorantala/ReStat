@@ -57,7 +57,9 @@ The following hostnames are listed in the user-provided DOU revision 1.0 dated 2
 | SIT deployment | `dwhpdeploy1` | Deployment server; environment hostname suffix not provided. |
 | POPE / Conversion | Not specified | Confirm with environment owner. |
 
-**ACC standard host moved to `dwhaas01` on 2026-10-22** (user-confirmed): all four standard ACC engines (`PRISMA_ACC` Main/Live/Snap/What-If) were relocated from `dwhdas26` to `dwhaas01` due to a memory issue. CIF engines were **not** moved and remain on `dwhaas03-cif`. `dwhdas26` is still powered on but no longer relevant to SRI ACC. For any ACC standard investigation use `dwhaas01`; treat earlier `dwhdas26` log/tuning snapshots as historical and reconfirm on `dwhaas01`.
+**ACC standard host moved to `dwhaas01` on 2026-10-22** (user-confirmed): all four standard ACC engines (`PRISMA_ACC` Main/Live/Snap/What-If) were relocated from `dwhdas26` to `dwhaas01` due to a memory issue. CIF engines were **not** moved and remain on `dwhaas03-cif`. `dwhdas26` is still powered on but no longer relevant to SRI ACC. For any ACC standard investigation use `dwhaas01`.
+
+**ACC topology/logs unchanged by the move (user-confirmed 2026-10-28):** only the host changed — the engine topology (`PRISMA_ACC` Main / `PRISMA_ACC_LIVE` / `PRISMA_ACC_SNAP` / `PRISMA_ACC_WHATIF`) and all log filenames/paths (`/infa_files/Scripts/SRI/logs`, same `PRISMA_ACC*.log` / `_err` / `_info` / `netty_` / `start_` names from the former `dwhdas26` inventory) are **identical** on `dwhaas01`. The former `dwhdas26` log inventory can be reused as-is for `dwhaas01`; no re-capture is required, though verifying filenames still exist on first use is good practice.
 
 The latest user-provided update supersedes the DOU's old ACC host `dwhdas27`. DEV hostnames match the DOU. Earlier operations notes also mention `dwhdas56` as a DEV alias/server; verify the current alias and environment mapping before connecting or operating an engine. Service names, wallet aliases, and credentials remain excluded; use approved internal authentication instructions.
 
@@ -136,6 +138,8 @@ Snapshot supplied by the user from `infa64@dwhdas28`. Confirmed via a live morni
 
 Source: user-provided `engine.cfg` from `yo328_t2@dwhdas25`. Saved configuration snapshot, not live health evidence. Reconfirm host and engine for each new incident.
 
+> **DR has no CIF (user-confirmed 2026-10-28).** Dress Rehearsal runs only the four standard engine roles (`PRISMA_*_DR` Main/Live/Snap/What-If). There is no CIF host or CIF engine for DR — do not offer a CIF scope, CIF engine list, or CIF catalog for DR. Any CIF-named descriptor filenames seen in the DR directory refer to other hosts and are artifacts.
+
 - **Connection type:** `development` (not wallet — differs from ACC/PROD which use wallet).
 - **DB service name:** `dwhdrprima`
 - **DB hosts (JDBC):** `dwhdx6vmc1-scan.deutsche-boerse.de:1521` (primary) and `dwhdx4-scan.deutsche-boerse.de:1521` (failover), with `CONNECT_TIMEOUT=2`, `TRANSPORT_CONNECT_TIMEOUT=1`, `RETRIES=1`.
@@ -210,3 +214,91 @@ Snapshot supplied by the user from `yo328_t2@dwhdas25`. This is a saved path/fil
 | What-If | `PRISMA_WHATIF_DR.log` | `PRISMA_WHATIF_DR_err.log` | `PRISMA_WHATIF_DR_info.log` | `netty_PRISMA_WHATIF_DR.log` | `start_PRISMA_WHATIF_DR.log` |
 
 The listing also showed many dated runtime archives and generic `*_ENGINE_*` or semicolon-containing descriptor log files. Use the role-specific `_DR` logs above for DR investigation; descriptor filenames mentioning `dwhdas28` or `dwhaas03` refer to other hosts and are not evidence those engines run on `dwhdas25`.
+
+### User-confirmed SIMU topology (host `dwhsas33`, 2026-10-28)
+Snapshot supplied by the user from `yo328_t2@dwhsas33` via a live `ps`/`ls` inventory. Confirmed all four standard engines plus FlushQueue running. This matches the DOU SIMU host `dwhsas33`.
+
+- SIMU uses the four engine roles with a **`PRISMA_SIMU`** prefix (note: `PRISMA_SIMU`, **not** `PRISMA_SIM`): `PRISMA_SIMU` (Main), `PRISMA_SIMU_LIVE`, `PRISMA_SIMU_SNAP`, `PRISMA_SIMU_WHATIF`, plus `PRISMA_FlushQueueEngine`.
+- Paths on `dwhsas33`: logs `/infa_files/Scripts/SRI/logs` (lowercase, non-DEV standard).
+- SIMU metadata schema (DOU) is `SRI_SIM`; application data schema/alias is `DTBSIM`.
+- Access model: CyberArk with each person's own username (login user observed: `yo328_t2`).
+- **Health-check engine list (standard):** `PRISMA_SIMU PRISMA_SIMU_LIVE PRISMA_SIMU_SNAP PRISMA_SIMU_WHATIF` (add `PRISMA_FlushQueueEngine` for flush coverage).
+
+| SIMU engine role | Runtime log | Errors | Info | Startup |
+|------------------|-------------|--------|------|---------|
+| Main | `PRISMA_SIMU.log` | (confirm `_err` base on host) | (confirm `_info` base on host) | (confirm `start_` base on host) |
+| Live | `PRISMA_SIMU_LIVE.log` | | | |
+| Snap | `PRISMA_SIMU_SNAP.log` | | | |
+| What-If | `PRISMA_SIMU_WHATIF.log` | | | |
+| FlushQueue | `PRISMA_FlushQueueEngine.log` | `PRISMA_FlushQueueEngine` (verify `_err`/`_info`) | | |
+
+- Process snapshot (2026-10-28): Main (pid 2052447) and What-If (pid 2052352) up since Oct 24; Live (3509656), Snap (3508755), and FlushQueue (3508018) restarted ~00:04–00:05 that day.
+- **Artifacts present on this host but not the active standard SIMU engines:** CIF `.log` files (`PRISMA_CIF_MAIN/LIVE/SNAP.log`, `PRISMA_CIF_*_err/_info.log`, `PRISMA_FlushQueueEngineCif.log`) exist in the directory, but **no CIF Java process was running** in the inventory — treat CIF files here as artifacts unless a CIF process is confirmed with `ps`. Generic `PRISMA_MAIN_ENGINE_*`/`PRISMA_LIVE_ENGINE_*`/`PRISMA_SNAP_ENGINE_*`/`PRISMA_WHATIF_ENGINE_*` (`_err`/`_info` only) logs are also artifacts; use the `PRISMA_SIMU*` role logs for SIMU investigation.
+- Not yet confirmed: exact `_err.log` / `_info.log` / `start_*.log` / `netty_*.log` base names for each SIMU role, and runtime archive date pattern. Confirm on-host before scripting those paths. SIMU/PROD retention is 7 days (vs 5 in DEV/ACC/SIT).
+
+### User-confirmed ACC standard live inventory (host `dwhaas01`, 2026-10-28)
+Snapshot supplied by the user from `yo328_t2@dwhaas01` via a live `ps`/`ls`. Confirms the post-move topology on the new host is identical to the former `dwhdas26` inventory.
+
+- Standard 4 engine roles: `PRISMA_ACC` (Main), `PRISMA_ACC_LIVE`, `PRISMA_ACC_SNAP`, `PRISMA_ACC_WHATIF` — all UP.
+- **FlushQueue on ACC is named `PRISMA_FLUSHQUEUE`** (uppercase; log `PRISMA_FLUSHQUEUE.log` + `_err`/`_info`). This differs from SIMU/PROD where it is `PRISMA_FlushQueueEngine`.
+- GC logs present: `PRISMA_ACC_gc.log`, `PRISMA_ACC_SNAP_gc.log`.
+- Path `/infa_files/Scripts/SRI/logs`.
+- **Health-check engine list (standard):** `PRISMA_ACC PRISMA_ACC_LIVE PRISMA_ACC_SNAP PRISMA_ACC_WHATIF` (add `PRISMA_FLUSHQUEUE` for flush coverage).
+- Process snapshot (2026-10-28): Main/Snap/What-If/FlushQueue up since Oct 26; Live restarted Oct 27. Two unlabelled (`?`) java processes with no `-DsriLogfile` also appeared — not SRI engines; ignore for the engine inventory.
+- Artifacts present but not active ACC engines: CIF `.log` files (`PRISMA_CIF_*`) and generic `PRISMA_MAIN_ENGINE_*`/`PRISMA_LIVE_ENGINE_*`/`PRISMA_SNAP_ENGINE_*`/`PRISMA_WHATIF_ENGINE_*` (`_err`/`_info` only). Use `PRISMA_ACC*` role logs for ACC investigation.
+
+### User-confirmed ACC CIF live inventory (host `dwhaas03`, 2026-10-28)
+Snapshot supplied by the user from `yo328_t2@dwhaas03` (the DOU/alias name is `dwhaas03-cif`; the actual login host shows `dwhaas03`). Live `ps`/`ls`.
+
+- CIF 3 engine roles: `PRISMA_CIF_MAIN`, `PRISMA_CIF_LIVE`, `PRISMA_CIF_SNAP` — all UP.
+- **Two CIF flush engines run here:** `PRISMA_CIF_FLUSH` and `PRISMA_CIF_FlushQueueEngine` (both UP, log files for each present).
+- Path `/infa_files/Scripts/SRI/logs`.
+- **Health-check engine list (CIF):** `PRISMA_CIF_MAIN PRISMA_CIF_LIVE PRISMA_CIF_SNAP` (add `PRISMA_CIF_FLUSH` / `PRISMA_CIF_FlushQueueEngine` for flush coverage).
+- Process snapshot (2026-10-28): Main up since Oct 15 (long uptime, `22-19:12:33`), Snap since Oct 16, Live since Oct 27, both flush engines since Oct 26. Two unlabelled (`?`) java processes also appeared — not CIF engines; ignore.
+
+### User-confirmed PROD standard live inventory (host `dwhpas27`, 2026-10-28)
+Snapshot supplied by the user from `yo328_t2@dwhpas27` via a live `ps`/`ls`. First confirmation of the PROD engine prefix.
+
+- PROD uses the four engine roles with a **`PRISMA_PROD`** prefix: `PRISMA_PROD` (Main), `PRISMA_PROD_LIVE`, `PRISMA_PROD_SNAP`, `PRISMA_PROD_WHATIF` — all UP.
+- **FlushQueue on PROD is `PRISMA_FlushQueueEngine`** (mixed case, like SIMU; unlike ACC's uppercase `PRISMA_FLUSHQUEUE`). A separate `PRISMA_FlushQueueEngineCif.log` file is present.
+- GC logs present: `PRISMA_PROD_gc.log`, `PRISMA_PROD_SNAP_gc.log`.
+- Path `/infa_files/Scripts/SRI/logs`.
+- **Health-check engine list (standard):** `PRISMA_PROD PRISMA_PROD_LIVE PRISMA_PROD_SNAP PRISMA_PROD_WHATIF` (add `PRISMA_FlushQueueEngine` for flush coverage).
+- Process snapshot (2026-10-28): Main/Snap up since Oct 26, What-If since Oct 24, FlushQueue since Oct 22; Live restarted 01:48 that day.
+- Metadata schema (DOU) `SRI_PRD`; application data schema/alias `DTPRIMA`. PROD retention 7 days.
+- Artifacts present but not active PROD engines: CIF `.log` files and generic `*_ENGINE_*` (`_err`/`_info`) logs; use `PRISMA_PROD*` role logs.
+
+### PROD CIF (host `dwhpas46`, 2026-10-28) — inventory INCOMPLETE
+Snapshot supplied by the user from `yo328_t2@dwhpas46`. **Not fully confirmed.**
+
+- `ls` shows CIF log files present (`PRISMA_CIF_MAIN/LIVE/SNAP/FLUSH` with `_err`/`_info`/`.log`), but a `ps -ef | grep PRISMA_CIF | grep java` returned **no running CIF process**.
+- A follow-up **unfiltered** `ps -ef | grep PRISMA | grep java` on `dwhpas46` **also returned empty** — i.e. no SRI engine of any name is running on this host.
+- **User assessment (2026-10-28):** PROD CIF is likely **not yet in service** on `dwhpas46` (the CIF log files are pre-existing/leftover). This is **not** being treated as a DOWN incident. Pending the user's confirmation of whether PROD CIF is expected to run here.
+- Do **not** record a confirmed PROD CIF topology or a health verdict until the user confirms PROD CIF is live. When it goes live, re-run the inventory to capture the real engine names before health-checking it.
+
+> **FlushQueue naming varies by host (confirmed 2026-10-28):** SIMU = `PRISMA_FlushQueueEngine`; ACC std = `PRISMA_FLUSHQUEUE` (uppercase); PROD std = `PRISMA_FlushQueueEngine`; ACC CIF = both `PRISMA_CIF_FLUSH` and `PRISMA_CIF_FlushQueueEngine`. Confirm the flush engine name per host from `ps`/`ls` rather than assuming one form.
+
+## ACC standard vs CIF data architecture (confirmed 2026-10-28)
+
+From an informational investigation of the CIF tranche-2 rollout. These are durable, reusable facts; per-day volumes are not.
+
+**Standard and CIF are two independent, parallel processing lines** — separate exchanges, separate schemas, separate hosts/engines:
+
+| | Standard | CIF |
+|---|----------|-----|
+| Host | `dwhaas01` | `dwhaas03` |
+| Engines | `PRISMA_ACC` Main/Live/Snap/What-If | `PRISMA_CIF_MAIN`/`LIVE`/`SNAP` |
+| AMQP exchange (broadcast) | `STATISTIX_DP` | `STATISTIX_CIF` |
+| StoreRequest destination | `broadcast.STATISTIX_DP.StoreRequestDataGroup.01` / `.02` | `broadcast.STATISTIX_CIF.StoreRequestDataGroup._QUE_NUM_` (templated; `QUEUE_DIRECTION=consumer`) |
+| Application-data schema | `DTBPRISPRIMA` | `CIFACC` |
+
+Key points:
+- **Standard vs CIF is separated by exchange** (`STATISTIX_DP` vs `STATISTIX_CIF`), **not** by a DataGroup number on one shared exchange. The Data-Pump sender config may list CIF as `StoreRequestDataGroup.03`, but the CIF engine *metadata* consumes from the `STATISTIX_CIF` exchange — reconcile the sender string vs the engine's `F_SRI_MODEL_AMQP_QUEUE.DESTINATION_NAME` before assuming.
+- **`.01` / `.02` is standard-internal load partitioning** (two parallel consumer tasks `task0`/`task1`), not a standard↔CIF split.
+- **Both sides process essentially the same core entities with near-identical volumes = parallel fan-out, not a load-split.** Identical per-entity integer counts on both engines (each writing to its own schema) indicate each receives a full copy; a split would give complementary counts. CIF does not offload the standard engine.
+- **The CIF model is assigned the full shared PRISMA catalogue plus CIF clearing-specific entities** (≈767 distinct across model versions; inflated by Main/Live/Snap variants and by several concurrently-valid model versions). CIF-specific examples: `Dct*`, `GcPooling*`, `LSOC`, `IRC*`, `Novated*`, `MarginMonitorARM16*`, `Collateral*`, `Member*`, `Segregation*`. Rationale (inferred): CIF needs the shared market/reference entities as inputs to compute clearing results self-contained in `CIFACC`.
+
+### ACC logs are on a shared NFS mount (confirmed 2026-10-28) — avoids false "duplicate engine"
+`/infa_files/Scripts/SRI/logs` on ACC resolves to the **shared NFS export `dwhafs01:/STXDATA/ACC/OB`**, shared between `dwhaas01` and `dwhaas03`. Consequences:
+- Standard `PRISMA_ACC*` logs are **visible from the CIF host `dwhaas03`** (and vice versa) even though the process runs elsewhere. A log file's engine identity is its **filename**, not the host you read it from.
+- Seeing active `PRISMA_ACC*` logs on `dwhaas03` is **not** evidence of a duplicate standard engine. Confirm with `ps -ef | grep DsriLogfile=.*PRISMA_ACC` (empty ⇒ no local process) and `df -h /infa_files/Scripts/SRI/logs` (shows the NFS mount) before concluding duplication.

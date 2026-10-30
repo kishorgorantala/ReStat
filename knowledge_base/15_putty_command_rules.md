@@ -15,6 +15,7 @@ Single source of truth for which shell commands ReStat issues over PuTTY and the
 7. **No secrets.** Log/config lines may carry credentials; ask the user to redact before sharing and never unmask or echo them (`jms.password=***` stays masked).
 8. **ReStat does not connect or execute.** It supplies commands; the user runs them.
 9. **Diagnosis ≠ remediation.** A successful recovery action does not establish root cause; keep the two separate.
+10. **Red marker on state-changing commands.** Any chat block that contains a state-changing command (file edit, `cp`/overwrite, restart/stop/start, deployment, DDL/DML, queue change, `touch <MODEL>.IND`, etc.) must carry a 🔴 marker on the line directly above it. Read-only diagnostic blocks stay unmarked. The marker is in addition to — not a replacement for — the explain-impact-verify-rollback approval gate in [State-changing commands](#state-changing-commands--reference-only).
 
 ## Breadth vs. depth
 
@@ -38,7 +39,11 @@ The two modes share the same **primitives** (`ps`, `grep`, `tail`, `head`, `cat`
 
 ## Health-check command set
 
+> Self-contained mode section. The shared [Hard rules](#hard-rules-apply-to-every-command-rca-or-health-check) and [Shared primitives](#shared-primitives-and-selection-rules) still apply to every command here — this section does not restate them.
+
 Broad, current-state sweep over **all** engines; no specific ID. Swap `<ENV>` prefix / engine list per host (see [03_environments.md](03_environments.md)); DR path uses singular `/infa_files/Scripts/SRI/log`.
+
+**Time span (intake H4) drives the scope.** Set `span` to the user's answer (`30min` / `1hr` / `3hr` / `12hr`); it derives a `cutoff` timestamp, and both the `-ERROR :` scan and the `|MONITORING|` freshness verdict are bounded to it (replaces the old whole-day `today` scan). See the span → command-window mapping in [00_intake_questions.md](00_intake_questions.md).
 
 ### Preferred: formatted, sorted summary table
 
@@ -46,25 +51,40 @@ Human-readable output for routine checks — sorted by engine, aligned columns, 
 
 ```sh
 cd /infa_files/Scripts/SRI/log        # DR uses singular .../log; most hosts use .../logs
-today=$(date +%F)
+# H4 span → cutoff. Set span to the user's answer: 30min | 1hr | 3hr | 12hr
+span="1hr"
+case "$span" in
+  30min) cutoff=$(date -d '-30 min'   '+%Y-%m-%dT%H:%M:%S') ;;
+  1hr)   cutoff=$(date -d '-1 hour'   '+%Y-%m-%dT%H:%M:%S') ;;
+  3hr)   cutoff=$(date -d '-3 hours'  '+%Y-%m-%dT%H:%M:%S') ;;
+  12hr)  cutoff=$(date -d '-12 hours' '+%Y-%m-%dT%H:%M:%S') ;;
+  *)     cutoff=$(date -d '-1 hour'   '+%Y-%m-%dT%H:%M:%S') ;;
+esac
 engines="PRISMA_<ENV> PRISMA_<ENV>_LIVE PRISMA_<ENV>_SNAP PRISMA_<ENV>_WHATIF"
 {
-  printf "ENGINE|STATUS|PID|START|LAST_MONITORING|ERRORS_TODAY|VERDICT\n"
+  printf "ENGINE|STATUS|PID|START|LAST_MONITORING|MON_FRESH|ERRORS_SPAN|VERDICT\n"
   for e in $(echo $engines | tr ' ' '\n' | sort); do
     row=$(ps -ef | grep -F "DsriLogfile=$e.log" | grep -v grep | head -n1)
     if [ -n "$row" ]; then st=UP; pid=$(echo "$row"|awk '{print $2}'); start=$(echo "$row"|awk '{print $5}')
     else st=DOWN; pid="-"; start="-"; fi
-    mon=$(grep "|MONITORING|" "$e.log" 2>/dev/null | tail -n1 | cut -c1-28); [ -z "$mon" ] && mon="(none)"
-    errs=$(grep -cE "^${today}T.*-ERROR +:" "$e.log" 2>/dev/null); errs=${errs:-0}
-    if [ "$st" = UP ] && [ "$mon" != "(none)" ] && [ "$errs" -eq 0 ]; then v=OK; else v=CHECK; fi
-    printf "%s|%s|%s|%s|%s|%s|%s\n" "$e" "$st" "$pid" "$start" "$mon" "$errs" "$v"
+    monline=$(grep "|MONITORING|" "$e.log" 2>/dev/null | tail -n1)
+    mon=$(echo "$monline" | cut -c1-28); [ -z "$mon" ] && mon="(none)"
+    monts=$(echo "$monline" | cut -c1-19)
+    fresh=$(awk -v c="$cutoff" -v m="$monts" 'BEGIN{print (m!="" && m>=c)?"YES":"NO"}')
+    errs=$(awk -v c="$cutoff" '/-ERROR +:/ && substr($0,1,19) >= c' "$e.log" 2>/dev/null | wc -l); errs=${errs:-0}
+    if [ "$st" = UP ] && [ "$fresh" = YES ] && [ "$errs" -eq 0 ]; then v=OK; else v=CHECK; fi
+    printf "%s|%s|%s|%s|%s|%s|%s|%s\n" "$e" "$st" "$pid" "$start" "$mon" "$fresh" "$errs" "$v"
   done
 } | column -t -s '|'
+# 12hr span may cross midnight — if cutoff is an earlier date than today, also scan the prior archive:
+#   awk -v c="$cutoff" '/-ERROR +:/ && substr($0,1,19) >= c' "$e.log.$(date -d yesterday +%F)"
 ```
 
 - Sorted by engine; aligned via `column -t`. If `column` is unavailable on the host, drop the final `| column -t -s '|'` to get pipe-delimited output.
-- `ERRORS_TODAY` counts only today's real `-ERROR :` lines (anchored on the log-level token, so the `|MONITORING| ERRORS:` counter never false-matches).
-- `VERDICT` = `OK` only when UP + has a monitoring heartbeat + zero errors today; otherwise `CHECK`.
+- `ERRORS_SPAN` counts real `-ERROR :` lines **within the H4 span** (timestamp `>= cutoff`), anchored on the log-level token so the `|MONITORING| ERRORS:` counter never false-matches.
+- `MON_FRESH` = `YES` only when the latest `|MONITORING|` timestamp is at/after the cutoff; `NO` means the heartbeat is stale **for the chosen span**.
+- `VERDICT` = `OK` only when UP + `MON_FRESH=YES` + zero errors in span; otherwise `CHECK`.
+- Lexical timestamp compare is valid because the log format is fixed-width ISO `YYYY-MM-DDThh:mm:ss`. For a 12 hr span crossing midnight, add the prior day's archive as shown in the trailing comment.
 
 ### Fallback: raw per-engine loop
 
@@ -76,13 +96,14 @@ ps -ef | grep -E "PRISMA_<ENV>" | grep java | grep -v grep | \
   awk '{ eng="?"; for(i=1;i<=NF;i++) if($i ~ /DsriLogfile=/) eng=$i; print $1,$2,$5,$7,eng }'
 # columns: USER  PID  STIME(start)  TIME(cpu)  -DsriLogfile=<engine>.log
 
-# B) Per-engine: latest heartbeat + most recent real ERROR lines
+# B) Per-engine: latest heartbeat + real ERROR lines within the H4 span
+cutoff=$(date -d '-1 hour' '+%Y-%m-%dT%H:%M:%S')   # set per H4 span: -30 min | -1 hour | -3 hours | -12 hours
 for e in <engine-log-basenames>; do
   echo "===== $e ====="
   pid=$(ps -ef | grep -F "DsriLogfile=$e.log" | grep -v grep | awk '{print $2}' | tr '\n' ' ')
   [ -n "$pid" ] && echo "PROCESS: UP (pid $pid)" || echo "PROCESS: DOWN"
-  grep "|MONITORING|" "$e.log" | tail -n 1          # REQUEST COUNT + recent timestamp = consuming
-  grep -n -E "\-ERROR +:" "$e.log" | tail -n 5
+  grep "|MONITORING|" "$e.log" | tail -n 1          # compare its timestamp to $cutoff: at/after = fresh for the span
+  awk -v c="$cutoff" '/-ERROR +:/ && substr($0,1,19) >= c' "$e.log" | tail -n 30
 done
 ```
 
@@ -101,6 +122,14 @@ Sorted, aligned, per-engine roll-up of memory / threads / GC / broker / startup 
 ```sh
 cd /infa_files/Scripts/SRI/log        # DR singular; else .../logs
 engines="PRISMA_<ENV> PRISMA_<ENV>_LIVE PRISMA_<ENV>_SNAP PRISMA_<ENV>_WHATIF"
+span="1hr"                                   # H4 span: 30min | 1hr | 3hr | 12hr
+case "$span" in
+  30min) cutoff=$(date -d '-30 min'   '+%Y-%m-%dT%H:%M:%S') ;;
+  1hr)   cutoff=$(date -d '-1 hour'   '+%Y-%m-%dT%H:%M:%S') ;;
+  3hr)   cutoff=$(date -d '-3 hours'  '+%Y-%m-%dT%H:%M:%S') ;;
+  12hr)  cutoff=$(date -d '-12 hours' '+%Y-%m-%dT%H:%M:%S') ;;
+  *)     cutoff=$(date -d '-1 hour'   '+%Y-%m-%dT%H:%M:%S') ;;
+esac
 {
   printf "ENGINE|VmHWM|THREADS|GC_STALLS|NETTY_ERR|STARTUP_ERR*|VERDICT\n"
   for e in $(echo $engines | tr ' ' '\n' | sort); do
@@ -108,9 +137,9 @@ engines="PRISMA_<ENV> PRISMA_<ENV>_LIVE PRISMA_<ENV>_SNAP PRISMA_<ENV>_WHATIF"
     if [ -z "$pid" ]; then printf "%s|-|-|-|-|-|DOWN\n" "$e"; continue; fi
     hwm=$(awk '/VmHWM/{printf "%.0f MB",$2/1024}' /proc/$pid/status 2>/dev/null); [ -z "$hwm" ] && hwm="n/a"
     thr=$(ls /proc/$pid/task 2>/dev/null | wc -l); [ "$thr" = 0 ] && thr="n/a"
-    gcs=$(grep -c "Allocation Stall" "${e}_gc.log" 2>/dev/null); gcs=${gcs:-0}
-    net=$(grep -cE "Failed to connect to remote at|error while listening to amqp" "netty_${e}.log" 2>/dev/null); net=${net:-0}
-    sup=$(grep -cE "\-ERROR +:" "start_${e}.log" 2>/dev/null); sup=${sup:-0}   # informational only (start logs accumulate across restarts)
+    gcs=$(grep -c "Allocation Stall" "${e}_gc.log" 2>/dev/null); gcs=${gcs:-0}   # GC log uses a bracketed [ISO] prefix, so not span-filtered here (ref 14: count is the stat label, not events)
+    net=$(awk -v c="$cutoff" '/Failed to connect to remote at|error while listening to amqp/ && substr($0,1,19) >= c' "netty_${e}.log" 2>/dev/null | wc -l); net=${net:-0}
+    sup=$(awk -v c="$cutoff" '/-ERROR +:/ && substr($0,1,19) >= c' "start_${e}.log" 2>/dev/null | wc -l); sup=${sup:-0}   # bounded to H4 span
     if [ "$gcs" -eq 0 ] && [ "$net" -eq 0 ]; then v=OK; else v=CHECK; fi
     printf "%s|%s|%s|%s|%s|%s|%s\n" "$e" "$hwm" "$thr" "$gcs" "$net" "$sup" "$v"
   done
@@ -124,14 +153,18 @@ free -h
 ```
 
 - `VmHWM` = peak resident memory (converted to MB); `n/a` if `/proc/<pid>/status` is permission-denied (engines run as `infa64`/group `STX_<ENV>`). Informational — does not drive the verdict.
+- **`NETTY_ERR` and `STARTUP_ERR*` are bounded to the H4 span** (timestamp `>= cutoff`), consistent with the basic table. `GC_STALLS` is a full-log count because the GC log line begins with a bracketed `[ISO]` prefix (offset differs from the engine logs); treat it per [14_sri_configuration_reference.md](14_sri_configuration_reference.md) — the raw count is the stat label, not real stalls.
 - **Per-engine `VERDICT`** is driven by **`GC_STALLS` + `NETTY_ERR` + process state**: `CHECK` if either count is non-zero or the process is `DOWN`; else `OK`.
-- **`STARTUP_ERR*` is informational only.** Start logs accumulate errors across restarts, so old/benign lines do not mean a current problem — investigate it only right after a known restart (scope to the latest startup).
+- **`STARTUP_ERR*` is informational only.** Even within the span, start logs accumulate errors across restarts — investigate it only right after a known restart (scope to the latest startup).
 - **Host memory `VERDICT=CHECK` when `MemAvailable < 10 GB`** (current agreed baseline; adjust as hosts change).
-- Drop the final `| column -t -s '|'` if `column` is unavailable.
+- The `substr($0,1,19)` compare assumes the line begins with an ISO `YYYY-MM-DDThh:mm:ss` timestamp; for a log with a different prefix, adjust the offset. Drop the final `| column -t -s '|'` if `column` is unavailable.
 
 #### Individual commands (drill-down)
 
 ```sh
+# Set the cutoff once per H4 span (used by 11 and 12): -30 min | -1 hour | -3 hours | -12 hours
+cutoff=$(date -d '-1 hour' '+%Y-%m-%dT%H:%M:%S')
+
 # 7. Free memory (host-level, run once)
 free -h ;  grep MemAvailable /proc/meminfo
 
@@ -142,20 +175,22 @@ grep -E "VmHWM|VmRSS|VmSize" /proc/<PID>/status
 ls /proc/<PID>/task | wc -l                 # live count
 cd /infa_files/Scripts/SRI/scripts ; ./getThreadCounter.sh   # project script (+ getThreadCountLog.txt)
 
-# 10. GC / allocation stalls (per engine) — real stalls have non-zero ms
+# 10. GC / allocation stalls (per engine) — real stalls have non-zero ms (GC log uses [ISO] prefix, not span-filtered)
 grep -n "Allocation Stall" PRISMA_<ENGINE>_gc.log | tail -n 20
 grep -m1 "Version:" PRISMA_<ENGINE>_gc.log   # confirms actual JDK
 
-# 11. Broker / reply path (per engine, Netty)
-grep -n -C 3 -E "Failed to connect to remote at|error while listening to amqp" netty_<ENGINE>.log | tail -n 30
+# 11. Broker / reply path (per engine, Netty) — bounded to H4 span
+awk -v c="$cutoff" '/Failed to connect to remote at|error while listening to amqp/ && substr($0,1,19) >= c' netty_<ENGINE>.log | tail -n 30
 
-# 12. Startup health (per engine, after a restart)
-grep -n -E "\-ERROR +:" start_<ENGINE>.log | head -n 30
+# 12. Startup health (per engine, after a restart) — bounded to H4 span
+awk -v c="$cutoff" '/-ERROR +:/ && substr($0,1,19) >= c' start_<ENGINE>.log | tail -n 30
 ```
 
 ## RCA command set
 
-Narrow, driven by a specific ID / signature / failure window; reaches logs the health check does not.
+> Self-contained mode section. The shared [Hard rules](#hard-rules-apply-to-every-command-rca-or-health-check) and [Shared primitives](#shared-primitives-and-selection-rules) still apply to every command here — this section does not restate them.
+
+Narrow, driven by a specific ID / signature / failure window; reaches logs the health check does not. Unlike the health check, RCA scopes to the **failure window** the user gives (intake RCA #2), not the H4 span.
 
 ```sh
 # Targeted context around a specific request/transaction ID
@@ -181,7 +216,7 @@ See [08_sri_general_operations.md](08_sri_general_operations.md), [12_sri_logs_c
 
 ## State-changing commands — reference only
 
-These appear in the knowledge base but are **never** run or recommended for execution without environment/version verification **and** explicit operator approval. Explain the change, its impact, verification, and rollback first; ReStat never executes them.
+These appear in the knowledge base but are **never** run or recommended for execution without environment/version verification **and** explicit operator approval. Explain the change, its impact, verification, and rollback first; ReStat never executes them. **Always prefix a block that contains any of these with a 🔴 marker on the line above it** (Hard rule 10).
 
 ```sh
 ./restart.sh restart PRISMA_<ENGINE>   # engine restart (08 / 11)
